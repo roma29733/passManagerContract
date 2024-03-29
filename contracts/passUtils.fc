@@ -1,0 +1,49 @@
+#include "params.func";
+#include "imports/stdlib.fc";
+const int ONE_TON = 100;
+
+;; pack_jetton_wallet_data
+cell pack_pass_child_data (cell itemText, slice owner, slice jetton_master, cell token_wallet_code) inline {
+    return  begin_cell()
+    .store_ref(itemText)
+    .store_slice(owner)
+    .store_slice(jetton_master)
+    .store_ref(token_wallet_code)
+    .end_cell();
+}
+{-
+    _ split_depth:(Maybe (## 5)) special:(Maybe TickTock)
+      code:(Maybe ^Cell) data:(Maybe ^Cell)
+      library:(HashmapE 256 SimpleLib) = StateInit;
+-}
+;; calculate_jetton_wallet_state_init calculate_pass_child_state_init
+
+cell calculate_pass_child_state_init (slice owner, slice jetton_master, cell code) inline {
+
+    cell newItemText = begin_cell().store_uint(12, 32).end_cell();
+
+    return begin_cell()
+    .store_uint(0,1 + 1) ;; split_depth (Maybe = 0) and special (Maybe = 0)
+    .store_maybe_ref(code)
+    .store_maybe_ref(pack_pass_child_data(newItemText, owner, jetton_master, code))
+    .store_uint(0,1) ;; libraries - empty cell
+    .end_cell();
+}
+
+{-
+  addr_std$10 anycast:(Maybe Anycast)
+   workchain_id:int8 address:bits256  = MsgAddressInt;
+-}
+slice calc_address(cell state_init) inline {
+    return begin_cell().store_uint(4, 3) ;; 0x100 : $10 + anycast (Maybe = 0)
+    .store_int(workchain, 8)
+    .store_uint(
+        cell_hash(state_init), 256)
+    .end_cell()
+    .begin_parse();
+}
+
+;; calc_user_wallet
+(slice) calc_user_pass_child(slice owner, slice jetton_master, cell code) inline {
+    return calc_address(calculate_pass_child_state_init(owner, jetton_master, code));
+}

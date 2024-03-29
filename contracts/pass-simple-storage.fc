@@ -1,0 +1,58 @@
+#include "imports/stdlib.fc";
+
+;; Этот смарт контракт будет хранить в себе пароли.
+
+(cell, cell, cell) load_data() inline {
+    slice ds = get_data().begin_parse();
+    return (
+        ds~load_ref(),
+        ds~load_ref(),
+        ds~load_ref()
+    );
+}
+
+() save_Data(cell namePass, cell emailPass, cell itemPass) impure inline {
+
+    set_data(
+        begin_cell()
+        .store_ref(namePass)
+        .store_ref(emailPass)
+        .store_ref(itemPass)
+        .end_cell()
+    );
+}
+
+() recv_internal(int msg_value, cell in_msg_full, slice in_msg_body) impure {
+
+
+    slice cs = in_msg_full.begin_parse();
+    int flags = cs~load_uint(4);
+
+    if (flags & 1) {
+        ;; ignore all bounced messages
+        return ();
+    }
+
+    slice sender_address = cs~load_msg_addr();
+
+    int op = in_msg_body~load_uint(32);
+    int query_id = in_msg_body~load_uint(64);
+
+    (cell namePass, cell emailPass, cell itemPass) = load_data();
+
+    if(op == 1) {
+        ;; Здесь будет изменение itemPass
+
+        cell newItemPass = in_msg_body~load_ref();
+        save_Data(namePass, emailPass, newItemPass);
+
+        return ();
+    }
+
+    throw(0xffff);
+}
+
+(cell, cell, cell) get_pass_item() method_id {
+    (cell namePass, cell emailPass, cell itemPass) = load_data();
+    return (namePass, emailPass, itemPass);
+}
