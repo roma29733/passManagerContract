@@ -1,0 +1,125 @@
+;; imports
+#include "../imports/stdlib.fc";
+#include "../passUtils.fc";
+#include "../utilits/messages.func";
+#include "../utilits/op-codes.func";
+#include "../utilits/error-codes.func";
+
+(slice, cell) load_data() inline {
+    slice ds = get_data().begin_parse();
+    return (
+        ds~load_msg_addr(), ;; admin_address
+        ds~load_ref() ;; pass_manager_code
+    );
+}
+
+() save_data(slice admin_address, cell pass_manager_code) impure inline {
+    set_data(
+        begin_cell()
+        .store_slice(admin_address)
+        .store_ref(pass_manager_code)
+        .end_cell()
+    );
+}
+
+() mintPassItem(slice to_address, cell pass_manager_code, int amount, cell master_msg) impure {
+    cell state_init = calculate_pass_child_state_init(to_address, my_address(), pass_manager_code);
+    slice to_pass_child_address = calc_address(state_init);
+
+    var newMsg = begin_cell()
+    .store_msg_flag(msg_flag::bounceable)
+    .store_slice(to_pass_child_address)
+    .store_coins(amount)
+    .store_msgbody_prefix_stateinit(state_init, master_msg);
+    send_raw_message(newMsg.end_cell(), PAY_FEES_SEPARATELY);
+}
+
+
+
+
+() recv_internal(int msg_value, cell in_msg_full, slice in_msg_body) impure {
+    if (in_msg_body.slice_empty?()) {
+        ;; ignore empty messages
+        return ();
+    }
+
+    slice cs = in_msg_full.begin_parse();
+    int flags = cs~load_uint(4);
+
+    if (flags & 1) {
+        ;; ignore all bounced messages
+        return ();
+    }
+    slice sender_address = cs~load_msg_addr();
+    cs~load_msg_addr(); ;; skip dst
+    cs~load_coins(); ;; skip value
+    cs~skip_bits(1); ;; skip extracurrency collection
+    cs~load_coins(); ;; skip ihr_fee
+    int fwd_fee = muldiv(cs~load_coins(), 3, 2); ;; we use message fwd_fee for estimation of forward_payload costs
+
+    int op = in_msg_body~load_op();
+    int query_id = in_msg_body~load_query_id();
+
+    (slice admin_address, cell pass_manager_code) = load_data();
+
+    if (op == op::mint) {
+        slice to_address = in_msg_body~load_msg_addr();
+        throw_unless(error::unauthorized_mint_request, equal_slice_bits(sender_address, to_address));
+        cell new_title = in_msg_body~load_ref();
+;;        int forward_ton_amount = in_msg_body~load_coins();
+;;        int total_ton_amount = in_msg_body~load_coins();
+;;        throw_unless(error::discovery_fee_not_matched, total_ton_amount > forward_ton_amount);
+        cell mint_request = begin_cell()
+        .store_op(op::internal_transfer)
+        .store_query_id(query_id)
+        .store_ref(new_title)
+        .store_uint(0, 2) ;; from_address, addr_none$00
+        .store_slice(my_address()) ;; response_address, 3 + 8 + 256 = 267 bit
+        .store_uint(0, 1) ;; no forward_payload, 1 bit
+        .end_cell();
+
+        mintPassItem(to_address, pass_manager_code, msg_value, mint_request);
+        save_data(admin_address, pass_manager_code);
+        return ();
+    }
+
+    if (op == 2) {
+        throw_unless(error::unauthorized_change_admin_request, equal_slice_bits(sender_address, admin_address));
+        int coins = get_balance().pair_first();
+        int requested_coins = in_msg_body~load_coins();
+        throw_unless(error::discovery_fee_not_matched, coins > requested_coins);
+        cell newMsg = begin_cell()
+        .store_uint(0x18, 6)
+        .store_slice(sender_address)
+        .store_coins(requested_coins)
+        .store_uint(0, 1 + 4 + 4 + 64 + 32 + 1 + 1)
+        .end_cell();
+        send_raw_message(newMsg, 64);
+        return ();
+    }
+
+    if (op == op::change_admin) {
+        throw_unless(error::unauthorized_change_admin_request, equal_slice_bits(sender_address, admin_address));
+        slice new_admin_address = in_msg_body~load_msg_addr();
+        save_data(new_admin_address, pass_manager_code);
+        return ();
+    }
+
+    if (op == op::change_cod) {
+        throw_unless(error::unauthorized_change_admin_request, equal_slice_bits(sender_address, admin_address));
+        cell newCod = in_msg_body~load_ref();
+        save_data(admin_address, newCod);
+    }
+
+    throw(0xffff);
+}
+
+slice get_address_pass(slice owner_address) method_id {
+    (slice admin_address, cell pass_manager_code) = load_data();
+    return calc_user_pass_child(owner_address, my_address(), pass_manager_code);
+}
+
+int get_balance_contract() method_id {
+    int balance = get_balance().pair_first();
+    return balance;
+}

@@ -23,6 +23,8 @@
     "compile": "ts-node ./scripts/compile.ts",
     "compileM": "ts-node ./scripts/compileMaster.ts",
     "compileC": "ts-node ./scripts/compileChild.ts",
+    "cpm": "ts-node ./scripts/compilePassMaster.ts",
+    "cpc": "ts-node ./scripts/compilePassChild.ts",
     "test": "yarn jest",
     "deploy": "yarn compile && ts-node ./scripts/deployMaster.ts",
     "getData": "ts-node ./scripts/scriptGetDataInItem.ts"

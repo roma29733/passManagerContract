@@ -1,6 +1,6 @@
 import {Cell, StateInit, beginCell, contractAddress, storeStateInit, toNano, Address} from "ton-core";
-import { hex } from "../build/passMaster.compiled.json";
-import {hex as childHex} from "../build/passChild.compiled.json"
+import {hex} from "../build/passMasterHex.compiled.json";
+import {hex as hexChild} from "../build/passChildHex.compiled.json";
 import qs from "qs";
 import qrcode from "qrcode-terminal";
 import {passManagerMasterStorageToCell} from "../wrappers/PassManagerMaster";
@@ -11,10 +11,10 @@ import {passManagerMasterStorageToCell} from "../wrappers/PassManagerMaster";
 // https://testnet.tonscan.org/address/kQBEuRw4qtBLCepCKw6lRZcIpe5G-7ICSI6K1JCCrIPE_IAa - last
 async function deployContract() {
     const codeCell = Cell.fromBoc(Buffer.from(hex,"hex"))[0];
-    const codeChild = Cell.fromBoc(Buffer.from(childHex, "hex"))[0];
+    const codeChild = Cell.fromBoc(Buffer.from(hexChild, "hex"))[0];
 
     const data = passManagerMasterStorageToCell({
-        admin_address: Address.parse("UQBZH1jb6opuqZAgxqUAScv50nda_yQkRO8MW6vz8rqe0xcw"),
+        admin_address: Address.parse("0QDDp_elzjex41uOyzGPNRKy8ysk44-2YxhLj4xg29xJskm1"),
         pass_manager_code: codeChild,
     });
 
